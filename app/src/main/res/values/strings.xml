@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">CustomCamera</string>
+    <string name="title_activity_preview">PreviewActivity</string>
+    <string name="rotation_str">Rotation=%d</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.customcamera;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog.Builder;
@@ -30,12 +31,14 @@ import android.view.ContextThemeWrapper;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.MenuItem;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.RequestManager;
@@ -68,16 +71,20 @@ public class CustomCameraNewActivity extends AppCompatActivity implements OnClic
     private FrameLayout frmSurfaceContainer = null;
 
     private boolean canTake = true;
+    private OrientationEventListener orientationEventListener = null;
+    private int deviceOrientation;
+    private TextView tvRotationVal;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.aaa);
+        setContentView(R.layout.activity_camera_preview);
         glideRequestManager = Glide.with(this);
 
         // camera surface view created
         cameraId = CameraInfo.CAMERA_FACING_BACK;
 
+         tvRotationVal = (TextView) findViewById(R.id.tvRotationVal);
         Button btnFlip = (Button) findViewById(R.id.btnFlip);
         Button btnCapture = (Button) findViewById(R.id.btnCapture);
         Button btnGallery = (Button) findViewById(R.id.btnGallery);
@@ -92,6 +99,15 @@ public class CustomCameraNewActivity extends AppCompatActivity implements OnClic
             btnFlip.setVisibility(View.VISIBLE);
         }
         frmSurfaceContainer = (FrameLayout) findViewById(R.id.frmSurfaceContainer);
+
+        orientationEventListener = new OrientationEventListener(this) {
+            @SuppressLint("DefaultLocale")
+            @Override
+            public void onOrientationChanged(int orientation) {
+                deviceOrientation = orientation;
+                tvRotationVal.setText(String.format(getString(R.string.rotation_str), deviceOrientation));
+            }
+        };
     }
 
     private void reopenCamera() {
@@ -307,34 +323,61 @@ public class CustomCameraNewActivity extends AppCompatActivity implements OnClic
                     try {
                         glideRequestManager.load(data).asBitmap().into(new SimpleTarget<Bitmap>(getDisplayWidth(), getDisplayHeight()) {
                             @Override
-                            public void onResourceReady(Bitmap resource, GlideAnimation<? super Bitmap> glideAnimation) {
+                            public void onResourceReady(final Bitmap resource, GlideAnimation<? super Bitmap> glideAnimation) {
                                 try {
-                                    Matrix rotateMatrix = new Matrix();
-                                    // Perform matrix rotations/mirrors depending on camera that took the photo
-                                    if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT){
-                                        float[] mirrorY = { -1, 0, 0, 0, 1, 0, 0, 0, 1};
-                                        Matrix matrixMirrorY = new Matrix();
-                                        matrixMirrorY.setValues(mirrorY);
+                                    orientationEventListener.enable();
+                                    new Handler().postDelayed(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Matrix rotateMatrix = new Matrix();
+                                            if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+                                                float[] mirrorY = {-1, 0, 0, 0, 1, 0, 0, 0, 1};
+                                                Matrix matrixMirrorY = new Matrix();
+                                                matrixMirrorY.setValues(mirrorY);
 
-                                        rotateMatrix.postConcat(matrixMirrorY);
-                                    }
-                                    rotateMatrix.postRotate(90);
+                                                rotateMatrix.postConcat(matrixMirrorY);
+                                            }
+                                            Log.d(">>deviceOrientation", "=" + deviceOrientation);
+                                            if (deviceOrientation < 0) {
+                                                rotateMatrix.postRotate(90);
+                                            } else if (deviceOrientation >= 70 && deviceOrientation <= 90) {
+                                                rotateMatrix.postRotate(180);
+                                            } else if (deviceOrientation >= 91 && deviceOrientation <= 130) {
+                                                rotateMatrix.postRotate(180);
+                                            }else if (deviceOrientation >= 131 && deviceOrientation <= 269) {
+                                                rotateMatrix.postRotate(270);
+                                            } else if (deviceOrientation >= 270 && deviceOrientation <= 285) {
+                                                rotateMatrix.postRotate(360);
+                                            }else if (deviceOrientation >= 286 && deviceOrientation <= 339) {
+                                                rotateMatrix.postRotate(90);
+                                            } else if (deviceOrientation >= 340 && deviceOrientation <= 360) {
+                                                rotateMatrix.postRotate(90);
+                                            } else {
+                                                rotateMatrix.postRotate(90);
+                                            }
+//                                            orientationEventListener.disable();
 
-                                    /*Matrix rotateMatrix = new Matrix();
-                                    rotateMatrix.postRotate(setCameraDisplayOrientation(CustomCameraNewActivity.this, cameraId, camera));*/
+                                            Bitmap rotatedBitmap = Bitmap.createBitmap(resource, 0, 0, resource.getWidth(), resource.getHeight(), rotateMatrix, false);
 
-                                    Bitmap rotatedBitmap = Bitmap.createBitmap(resource, 0, 0, resource.getWidth(), resource.getHeight(), rotateMatrix, false);
+                                            File file = new File(getDirectoryPath(CustomCameraNewActivity.this), getTimeStamp() + "CAMERA.jpg");
+                                            try {
+                                                file.createNewFile();
+                                                FileOutputStream fos = new FileOutputStream(file);
+                                                rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 75, fos);
 
-                                    File file = new File(getDirectoryPath(CustomCameraNewActivity.this), getTimeStamp() + "CAMERA.jpg");
-                                    file.createNewFile();
-                                    FileOutputStream fos = new FileOutputStream(file);
-                                    rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 75, fos);
-
-                                    fos.close();
-                                    rotatedBitmap.recycle();
-                                    Log.d("Captured path",""+file.getPath());
-                                    releaseCamera();
-                                    finish();
+                                                fos.close();
+                                                rotatedBitmap.recycle();
+                                                Log.d("Captured path", "" + file.getPath());
+                                                releaseCamera();
+//                                                finish();
+                                                Intent intent=new Intent(CustomCameraNewActivity.this,PreviewActivity.class);
+                                                intent.putExtra("pic",file.getPath());
+                                                startActivity(intent);
+                                            } catch (Exception e) {
+                                                e.printStackTrace();
+                                            }
+                                        }
+                                    }, 1000);
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -566,7 +609,7 @@ public class CustomCameraNewActivity extends AppCompatActivity implements OnClic
                             if (inputStream != null) {
                                 inputStream.close();
                             }
-                            Log.d("Captured path",""+dirPath + "/" + fileName);
+                            Log.d("Captured path", "" + dirPath + "/" + fileName);
                             releaseCamera();
                             finish();
                         } catch (Exception e) {

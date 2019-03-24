@@ -15,6 +15,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+
     </FrameLayout>
 
     <LinearLayout
@@ -42,4 +43,11 @@
             android:layout_height="wrap_content"
             android:text="Flip" />
     </LinearLayout>
+    <TextView
+        android:id="@+id/tvRotationVal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:text="0" />
 </RelativeLayout>
